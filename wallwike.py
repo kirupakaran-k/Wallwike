@@ -1,9 +1,9 @@
-"""SpanPaper - daily wallpaper spanned as ONE image across a dual-monitor desktop (Windows).
+"""Wallwike - daily wallpaper spanned as ONE image across a dual-monitor desktop (Windows).
 
 Run modes:
-    pythonw spanpaper.py          tray app (normal use)
-    python  spanpaper.py --once   change the wallpaper now and exit
-    python  spanpaper.py --test   check which image sources are reachable (changes nothing)
+    pythonw wallwike.py          tray app (normal use)
+    python  wallwike.py --once   change the wallpaper now and exit
+    python  wallwike.py --test   check which image sources are reachable (changes nothing)
 """
 import ctypes
 import datetime
@@ -24,8 +24,8 @@ from PIL import Image
 
 from version import COMPANY, CREDIT, __version__
 
-APP = "SpanPaper"
-FROZEN = getattr(sys, "frozen", False)  # True when running as SpanPaper.exe (PyInstaller)
+APP = "Wallwike"
+FROZEN = getattr(sys, "frozen", False)  # True when running as Wallwike.exe (PyInstaller)
 HERE = os.path.dirname(os.path.abspath(sys.executable if FROZEN else __file__))
 try:  # settings live beside the app; if that folder is read-only (Program Files), use AppData
     os.makedirs(os.path.join(HERE, "data"), exist_ok=True)
@@ -37,9 +37,9 @@ SELF_CMD = [sys.executable] if FROZEN else [sys.executable, os.path.abspath(__fi
 DATA = os.path.join(HERE, "data")
 CONFIG_PATH = os.path.join(HERE, "config.json")
 STATE_PATH = os.path.join(DATA, "state.json")
-LOG_PATH = os.path.join(DATA, "spanpaper.log")
+LOG_PATH = os.path.join(DATA, "wallwike.log")
 IS_WIN = sys.platform == "win32"
-UA = "SpanPaper/1.0 (personal daily wallpaper script; Python urllib)"
+UA = "Wallwike/1.0 (personal daily wallpaper script; Python urllib)"
 SOURCES = ["auto", "wallhaven", "wikimedia", "bing", "apod"]
 SOURCE_LABELS = {
     "auto": "Auto (Wallhaven > Wikimedia > Bing)",
@@ -321,7 +321,7 @@ def run_keywords_window():
     import tkinter as tk
     from tkinter import ttk
     root = tk.Tk()
-    root.title("SpanPaper keywords")
+    root.title("Wallwike keywords")
     root.resizable(False, False)
     root.attributes("-topmost", True)
     frm = ttk.Frame(root, padding=12)
@@ -452,6 +452,15 @@ def run_tray():
             ctypes.windll.shcore.SetProcessDpiAwareness(2)  # real pixels on scaled displays
         except Exception:
             pass
+    if IS_WIN:  # earlier names of this app: carry over their "Start with Windows" entry
+        import winreg
+        for old in ("SpanPaper", "Wallsynk"):
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+                    winreg.DeleteValue(k, old)
+                set_autostart(True)
+            except OSError:
+                pass
     cfg = load_config()
     if not os.path.exists(CONFIG_PATH):
         save_json(CONFIG_PATH, cfg)

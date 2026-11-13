@@ -1,4 +1,4 @@
-"""Writes the details Windows shows for SpanPaper.exe (right-click > Properties > Details):
+"""Writes the details Windows shows for Wallwike.exe (right-click > Properties > Details):
 product name, version, company and copyright. build.bat runs this and hands the file to
 PyInstaller."""
 import sys
@@ -6,7 +6,7 @@ import time
 
 from version import COMPANY, CREDIT, __version__ as VERSION
 
-APP = "SpanPaper"
+APP = "Wallwike"
 
 
 def version_file_text() -> str:

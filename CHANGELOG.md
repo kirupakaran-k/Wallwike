@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5: Renamed to Wallwike - 2026-11-13
+The app is now called Wallwike (it was briefly Wallsynk on the way): script, icon, exe, tray menu, Keywords window and log. A Start with Windows entry made under either old name is moved over the first time Wallwike starts.
+
 ## 1.4: Standalone exe, version number - 2026-11-13
 build.bat builds a single SpanPaper.exe with PyInstaller that needs no Python and sits in the tray like the script did; it keeps its settings beside itself (or in AppData if that folder can't be written to). The Keywords window and Start with Windows now work from the exe. New icon file, and a version number in version.py that is shown at the bottom of the tray menu and names the 'build <version>' folder.
 

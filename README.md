@@ -1,8 +1,8 @@
-# SpanPaper
+# Wallwike
 
 Daily wallpaper for a dual-monitor Windows desktop: one image spanned across both screens.
 
-*SpanPaper by EAGER - Softech. An engineering by Er. K.K.*
+*Wallwike by EAGER - Softech. An engineering by Er. K.K.*
 
 ## Setup
 1. Double-click `install.bat` - installs Pillow and pystray, then tests which image sources your network can reach.
@@ -31,11 +31,11 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 | `nasa_api_key` | `DEMO_KEY` works; a free key from api.nasa.gov lifts its rate limit |
 
 ## Troubleshooting
-- `python spanpaper.py --test` shows which sources work; `data\spanpaper.log` has details.
-- `python spanpaper.py --once` sets a wallpaper without the tray app.
+- `python wallwike.py --test` shows which sources work; `data\wallwike.log` has details.
+- `python wallwike.py --once` sets a wallpaper without the tray app.
 
 ## Build the exe
-Install Python 3.10 or newer, then double-click `build.bat`. It puts `SpanPaper.exe` in a
+Install Python 3.10 or newer, then double-click `build.bat`. It puts `Wallwike.exe` in a
 `build <version>` folder. The exe needs no Python and keeps its settings beside itself.
 
 ## Licence
