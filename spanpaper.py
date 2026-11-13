@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
     "source": "auto",
     "keywords": ["mountains", "landscape", "forest", "coast"],
     "hotkey": "ctrl+alt+n",
+    "refresh_minutes": 0,
     "canvas": None,
     "vertical_anchor": 0.5,
     "bing_market": "en-IN",
@@ -272,6 +273,7 @@ def change_wallpaper(fresh=False):
                             pass
                 st["history"] = (st["history"] + [info["id"]])[-300:]
                 st["last_date"] = datetime.date.today().isoformat()
+                st["last_ts"] = time.time()
                 st["current"] = {"title": info["title"], "page": info["page"], "source": name, "file": out}
                 save_json(STATE_PATH, st)
                 log.info("Wallpaper set %dx%d: %s", size[0], size[1], info["title"])
@@ -489,6 +491,9 @@ def run_tray():
 
     settings_menu = Menu(
         Item("Keywords...", open_keywords),
+        Item("Refresh interval", radio_menu("refresh_minutes", [
+            ("Once a day", 0), ("Every 12 hours", 720), ("Every 6 hours", 360), ("Every 3 hours", 180),
+            ("Every hour", 60), ("Every 30 minutes", 30), ("Every 15 minutes", 15)])),
         Item("Crop position (tall images)", radio_menu("vertical_anchor", [
             ("Top", 0.0), ("Upper", 0.25), ("Middle", 0.5), ("Lower", 0.75), ("Bottom", 1.0)])),
         Item("Bing region", radio_menu("bing_market", [
@@ -500,7 +505,7 @@ def run_tray():
 
     hot = cfg.get("hotkey") or ""
     menu = Menu(
-        Item("Next image" + (" (%s)" % hot.upper() if hot else ""), lambda i, it: do_change(True), default=True),
+        Item("Next image" + (" (%s)" % hot.upper() if hot else ""), lambda i, it: do_change(True)),
         Item("Source", Menu(*[
             Item(SOURCE_LABELS[s], choose_source(s), radio=True,
                  checked=lambda it, s=s: load_config()["source"] == s) for s in SOURCES])),
@@ -518,12 +523,20 @@ def run_tray():
     def daily_loop():
         while True:
             try:
-                if load_state()["last_date"] != datetime.date.today().isoformat():
-                    change_wallpaper(False)
+                st = load_state()
+                try:
+                    mins = float(load_config().get("refresh_minutes") or 0)
+                except (TypeError, ValueError):
+                    mins = 0
+                if st["last_date"] != datetime.date.today().isoformat():
+                    change_wallpaper(False)  # first image of the day
+                    refresh_title()
+                elif mins > 0 and time.time() - st.get("last_ts", 0) >= mins * 60:
+                    change_wallpaper(True)  # interval elapsed: a different image
                     refresh_title()
             except Exception:
-                log.exception("daily loop error")
-            time.sleep(300)  # also the retry interval when offline
+                log.exception("refresh loop error")
+            time.sleep(60)  # also the retry interval when offline
 
     threading.Thread(target=daily_loop, daemon=True).start()
     if hot and IS_WIN:

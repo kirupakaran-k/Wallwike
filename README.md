@@ -10,7 +10,7 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 3. Right-click the tray icon > **Start with Windows** to run it at every logon.
 
 ## Use
-- **Next image**: left-click the tray icon, or press **Ctrl+Alt+N**.
+- **Next image**: right-click > Next image, or press **Ctrl+Alt+N**. Left-click does nothing.
 - **Source**: right-click > Source. *Auto* tries Wallhaven, then Wikimedia Commons, then Bing.
 - **Settings**: right-click > Settings. Tick keywords (one ticked keyword is picked at random per
   image; applies to Wallhaven and Wikimedia), add a custom one, set crop position and Bing region.
@@ -23,6 +23,7 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 | `source` | `auto`, `wallhaven`, `wikimedia`, `bing`, `apod` |
 | `keywords` | list of topics, e.g. `["mountains", "space"]` |
 | `hotkey` | e.g. `ctrl+alt+n`; `""` disables (restart the app after changing) |
+| `refresh_minutes` | `0` = once a day; otherwise minutes between changes (also in Settings > Refresh interval) |
 | `canvas` | `null` = detect combined desktop size; or force e.g. `[3840, 1080]` |
 | `vertical_anchor` | which part to keep when cropping tall images: 0 = top, 0.5 = middle, 1 = bottom |
 | `bing_market` | Bing region, e.g. `en-IN` |

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3: Left-click does nothing, refresh interval - 2026-11-13
+Left-clicking the tray icon no longer changes the wallpaper; Next image is on the right-click menu and Ctrl+Alt+N only. Settings has a new Refresh interval: once a day (as before), every 12, 6, 3 or 1 hours, or every 30 or 15 minutes. The interval counts from the last change, so Next image restarts it, and a new choice takes effect within a minute.
+
 ## 1.2: Keywords window that stays open - 2026-11-13
 Windows closes a tray menu after every click, so ticking several keywords meant opening the menu again each time. Keywords now opens a small window of tick boxes that stays open until you close it, with a box to type your own keyword; each tick is saved straight away. Crop position and Bing region stay as submenus.
 
