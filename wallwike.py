@@ -22,23 +22,19 @@ import webbrowser
 
 from PIL import Image
 
-from version import COMPANY, CREDIT, __version__
+from version import APP, COMPANY, CREDIT, VERSION
 
-APP = "Wallwike"
+IS_WIN = sys.platform == "win32"
 FROZEN = getattr(sys, "frozen", False)  # True when running as Wallwike.exe (PyInstaller)
-HERE = os.path.dirname(os.path.abspath(sys.executable if FROZEN else __file__))
-try:  # settings live beside the app; if that folder is read-only (Program Files), use AppData
-    os.makedirs(os.path.join(HERE, "data"), exist_ok=True)
-    with open(os.path.join(HERE, "data", ".write_test"), "w"):
-        pass
-except OSError:
-    HERE = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), APP)
+SRC = os.path.dirname(os.path.abspath(sys.executable if FROZEN else __file__))
 SELF_CMD = [sys.executable] if FROZEN else [sys.executable, os.path.abspath(__file__)]
+# Settings and the current wallpaper live in %APPDATA%\Wallwike, so every version shares them.
+HERE = (os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), APP) if IS_WIN
+        else os.path.join(os.path.expanduser("~"), "." + APP.lower()))
 DATA = os.path.join(HERE, "data")
 CONFIG_PATH = os.path.join(HERE, "config.json")
 STATE_PATH = os.path.join(DATA, "state.json")
 LOG_PATH = os.path.join(DATA, "wallwike.log")
-IS_WIN = sys.platform == "win32"
 UA = "Wallwike/1.0 (personal daily wallpaper script; Python urllib)"
 SOURCES = ["auto", "wallhaven", "wikimedia", "bing", "apod"]
 SOURCE_LABELS = {
@@ -63,6 +59,12 @@ DEFAULT_CONFIG = {
 Image.MAX_IMAGE_PIXELS = 400_000_000
 
 os.makedirs(DATA, exist_ok=True)
+if not os.path.exists(CONFIG_PATH):  # before 1.0 was foldered, settings sat beside the script
+    import shutil
+    for _old in (SRC, os.path.dirname(SRC), os.path.dirname(os.path.dirname(SRC))):
+        if os.path.exists(os.path.join(_old, "config.json")):
+            shutil.copyfile(os.path.join(_old, "config.json"), CONFIG_PATH)
+            break
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -533,7 +535,7 @@ def run_tray():
         Item("Open log", lambda i, it: os.startfile(LOG_PATH)),
         Item("Start with Windows", toggle_autostart, checked=lambda it: autostart_enabled()),
         Menu.SEPARATOR,
-        Item("%s %s by %s" % (APP, __version__, COMPANY), None, enabled=False),
+        Item("%s %s by %s" % (APP, VERSION, COMPANY), None, enabled=False),
         Item(CREDIT, None, enabled=False),
         Item("Quit", lambda i, it: icon.stop()),
     )
@@ -570,7 +572,11 @@ if __name__ == "__main__":
             ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except Exception:
             pass
-    if "--test" in sys.argv:
+    if "--make-icon" in sys.argv:  # used by build.bat: python wallwike.py --make-icon out.ico
+        tray_icon_image().resize((256, 256), Image.LANCZOS).save(
+            sys.argv[sys.argv.index("--make-icon") + 1],
+            sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)])
+    elif "--test" in sys.argv:
         run_test()
     elif "--keywords" in sys.argv:
         run_keywords_window()

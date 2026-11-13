@@ -31,12 +31,27 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 | `nasa_api_key` | `DEMO_KEY` works; a free key from api.nasa.gov lifts its rate limit |
 
 ## Troubleshooting
-- `python wallwike.py --test` shows which sources work; `data\wallwike.log` has details.
+- `python wallwike.py --test` shows which sources work; `%APPDATA%\Wallwike\data\wallwike.log` has details.
 - `python wallwike.py --once` sets a wallpaper without the tray app.
 
 ## Build the exe
-Install Python 3.10 or newer, then double-click `build.bat`. It puts `Wallwike.exe` in a
-`build <version>` folder. The exe needs no Python and keeps its settings beside itself.
+Install Python 3.10 or newer, then double-click `build.bat`. It sets up the build tools the first
+time and puts `Wallwike.exe` in a `build <version>` folder next to the `version` folders. The exe
+needs no Python.
+
+## Where things are kept
+- Settings, the log and the current wallpaper: `%APPDATA%\Wallwike` (shared by every version).
+- Each version's source is kept in its own folder, `version 1\1.0 - First build`, `version 1\1.1 - Settings submenu` and so on, with
+  `What changed in each version.txt` beside them.
+
+## Files
+| File | What it does |
+|---|---|
+| `wallwike.py` | The whole app: image sources, cropping, setting the wallpaper, tray menu, hotkey |
+| `version.py` | The name, version number and company (shown in the tray menu; names the build folder) |
+| `build.bat` | Builds `Wallwike.exe` |
+| `exe_info.py` | The exe's details: name, version, company and copyright |
+| `install.bat`, `run.bat` | Run from source without building: install libraries, then start the tray app |
 
 ## Licence
 GPL-3.0. Bundled libraries: Pillow (MIT-CMU), pystray (LGPL-3.0).

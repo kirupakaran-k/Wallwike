@@ -4,9 +4,7 @@ PyInstaller."""
 import sys
 import time
 
-from version import COMPANY, CREDIT, __version__ as VERSION
-
-APP = "Wallwike"
+from version import APP, COMPANY, CREDIT, VERSION
 
 
 def version_file_text() -> str:

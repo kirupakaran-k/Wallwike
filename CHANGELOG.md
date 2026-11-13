@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6: Version folders, settings in AppData - 2026-11-13
+The source is now kept the way Synked's is: each version in its own folder under 'version 1' with this file beside them, and build.bat (rewritten after Synked's) builds Wallwike.exe into 'build 1.6' outside the version folders, keeps its build tools in %LOCALAPPDATA%\Wallwike\build-env, draws the icon itself, and closes and restarts a running Wallwike. Settings, the log and the current wallpaper move to %APPDATA%\Wallwike so every version shares them; settings saved beside an older script or exe are copied over the first time this version starts. version.py now holds VERSION and APP.
+
 ## 1.5: Renamed to Wallwike - 2026-11-13
 The app is now called Wallwike (it was briefly Wallsynk on the way): script, icon, exe, tray menu, Keywords window and log. A Start with Windows entry made under either old name is moved over the first time Wallwike starts.
 
