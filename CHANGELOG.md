@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4: Standalone exe, version number - 2026-11-13
+build.bat builds a single SpanPaper.exe with PyInstaller that needs no Python and sits in the tray like the script did; it keeps its settings beside itself (or in AppData if that folder can't be written to). The Keywords window and Start with Windows now work from the exe. New icon file, and a version number in version.py that is shown at the bottom of the tray menu and names the 'build <version>' folder.
+
 ## 1.3: Left-click does nothing, refresh interval - 2026-11-13
 Left-clicking the tray icon no longer changes the wallpaper; Next image is on the right-click menu and Ctrl+Alt+N only. Settings has a new Refresh interval: once a day (as before), every 12, 6, 3 or 1 hours, or every 30 or 15 minutes. The interval counts from the last change, so Next image restarts it, and a new choice takes effect within a minute.
 

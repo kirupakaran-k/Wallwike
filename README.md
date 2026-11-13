@@ -34,4 +34,12 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 - `python spanpaper.py --test` shows which sources work; `data\spanpaper.log` has details.
 - `python spanpaper.py --once` sets a wallpaper without the tray app.
 
+## Build the exe
+Install Python 3.10 or newer, then double-click `build.bat`. It puts `SpanPaper.exe` in a
+`build <version>` folder. The exe needs no Python and keeps its settings beside itself.
+
+## Licence
+GPL-3.0. Bundled libraries: Pillow (MIT-CMU), pystray (LGPL-3.0).
+Wallpapers are downloaded from third-party sites and remain under their owners' terms.
+
 (c) EAGER - Softech. An engineering by Er. K.K.

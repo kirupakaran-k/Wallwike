@@ -22,10 +22,18 @@ import webbrowser
 
 from PIL import Image
 
+from version import COMPANY, CREDIT, __version__
+
 APP = "SpanPaper"
-COMPANY = "EAGER - Softech"
-CREDIT = "An engineering by Er. K.K."
-HERE = os.path.dirname(os.path.abspath(__file__))
+FROZEN = getattr(sys, "frozen", False)  # True when running as SpanPaper.exe (PyInstaller)
+HERE = os.path.dirname(os.path.abspath(sys.executable if FROZEN else __file__))
+try:  # settings live beside the app; if that folder is read-only (Program Files), use AppData
+    os.makedirs(os.path.join(HERE, "data"), exist_ok=True)
+    with open(os.path.join(HERE, "data", ".write_test"), "w"):
+        pass
+except OSError:
+    HERE = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), APP)
+SELF_CMD = [sys.executable] if FROZEN else [sys.executable, os.path.abspath(__file__)]
 DATA = os.path.join(HERE, "data")
 CONFIG_PATH = os.path.join(HERE, "config.json")
 STATE_PATH = os.path.join(DATA, "state.json")
@@ -364,6 +372,8 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 def autostart_command():
     exe = sys.executable
+    if FROZEN:
+        return '"%s"' % exe
     pyw = os.path.join(os.path.dirname(exe), "pythonw.exe")
     if os.path.exists(pyw):
         exe = pyw
@@ -477,7 +487,7 @@ def run_tray():
     # ---- Settings submenu -------------------------------------------------
     def open_keywords(icon_, item):
         import subprocess
-        subprocess.Popen([sys.executable, os.path.abspath(__file__), "--keywords"])
+        subprocess.Popen(SELF_CMD + ["--keywords"])
 
     def choose_value(key, value):
         def handler(icon_, item):
@@ -514,7 +524,7 @@ def run_tray():
         Item("Open log", lambda i, it: os.startfile(LOG_PATH)),
         Item("Start with Windows", toggle_autostart, checked=lambda it: autostart_enabled()),
         Menu.SEPARATOR,
-        Item("%s by %s" % (APP, COMPANY), None, enabled=False),
+        Item("%s %s by %s" % (APP, __version__, COMPANY), None, enabled=False),
         Item(CREDIT, None, enabled=False),
         Item("Quit", lambda i, it: icon.stop()),
     )
