@@ -83,7 +83,7 @@ echo Done!  Wallwike %VER% is ready in "%OUT%".
 
 if defined WASRUNNING (
   echo Starting the new Wallwike...
-  start "" "%OUT%\Wallwike.exe"
+  start "" /D "%OUT%" "%OUT%\Wallwike.exe"
 )
 echo This window will close in 3 seconds...
 >nul ping -n 4 127.0.0.1

@@ -1,5 +1,5 @@
 """Wallwike's version number. Shown in the tray menu; build.bat names the build folder after it."""
-VERSION = "1.8"
+VERSION = "1.9"
 APP = "Wallwike"
 COMPANY = "EAGER - Softech"
 CREDIT = "An engineering by Er. K.K."

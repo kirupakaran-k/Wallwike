@@ -8,11 +8,13 @@ Run modes:
 import ctypes
 import datetime
 import glob
+import html
 import io
 import json
 import logging
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -38,11 +40,18 @@ STATE_PATH = os.path.join(DATA, "state.json")
 LOG_PATH = os.path.join(DATA, "wallwike.log")
 UA = "%s/%s (personal daily wallpaper script; Python urllib)" % (APP, VERSION)
 SKIP_SECONDS = 6 * 3600  # a source this network can't reach is tried last for this long
-SOURCES = ["auto", "wikimedia", "bing"]
+# Best working first: this is the order of the Source menu and the order Auto tries them in.
+ORDER = ["wikimedia", "spotlight", "bing", "peapix", "nasa", "webb", "hubble"]
+SOURCES = ["auto"] + ORDER
 SOURCE_LABELS = {
-    "auto": "Auto (Wikimedia > Bing)",
+    "auto": "Auto (best working first)",
     "wikimedia": "Wikimedia Commons (featured panoramas)",
+    "spotlight": "Windows Spotlight",
     "bing": "Bing image of the day",
+    "peapix": "Peapix (recent Spotlight pictures)",
+    "nasa": "NASA Image Library (panoramas)",
+    "webb": "ESA Webb telescope",
+    "hubble": "ESA Hubble telescope",
 }
 DEFAULT_CONFIG = {
     "source": "auto",
@@ -122,16 +131,26 @@ def pick_keyword(cfg):
 
 
 # ---------------------------------------------------------------- http
-def http_get(url, params=None, timeout=30):
+def http_get(url, params=None, timeout=30, headers=None):
     if params:
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    req = urllib.request.Request(url, headers=dict({"User-Agent": UA}, **(headers or {})))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
-def http_json(url, params=None, timeout=30):
-    return json.loads(http_get(url, params, timeout).decode("utf-8"))
+def http_json(url, params=None, timeout=30, headers=None):
+    return json.loads(http_get(url, params, timeout, headers).decode("utf-8"))
+
+
+def big_enough(url, low=700_000, high=80_000_000):
+    """Asks the site how big a file is without downloading it: skips thumbnails and giant originals."""
+    req = urllib.request.Request(url, headers={"User-Agent": UA}, method="HEAD")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return low <= int(r.headers.get("Content-Length") or 0) <= high
+    except urllib.error.HTTPError:
+        return False
 
 
 # ---------------------------------------------------------------- sources
@@ -143,7 +162,8 @@ def fetch_wikimedia(cfg, seen, fresh):
         d = http_json("https://commons.wikimedia.org/w/api.php", {
             "action": "query", "format": "json", "generator": "search", "gsrnamespace": "6",
             "gsrlimit": "50", "gsrsort": "random", "gsrsearch": base + extra,
-            "prop": "imageinfo", "iiprop": "url|size|mime", "iiurlwidth": "3840"})
+            "prop": "imageinfo", "iiprop": "url|size|mime|extmetadata",
+            "iiextmetadatafilter": "Artist|LicenseShortName", "iiurlwidth": "3840"})
         pages = list(d.get("query", {}).get("pages", {}).values())
         random.shuffle(pages)
         for p in pages:
@@ -156,8 +176,12 @@ def fetch_wikimedia(cfg, seen, fresh):
             if pid in seen:
                 continue
             title = p["title"].replace("File:", "").rsplit(".", 1)[0]
+            meta = ii.get("extmetadata") or {}
+            artist = html.unescape(re.sub(r"<[^>]+>", "", (meta.get("Artist") or {}).get("value", ""))).strip()
+            credit = ", ".join(x for x in (" ".join(artist.split())[:60],
+                                           (meta.get("LicenseShortName") or {}).get("value", "")) if x)
             return {"id": pid, "url": ii["thumburl"], "page": ii.get("descriptionurl", ""),
-                    "title": "%s (Wikimedia Commons)" % title, "source": "wikimedia"}
+                    "title": title, "credit": credit, "source": "wikimedia"}
     raise RuntimeError("Wikimedia: no unseen wide image for keyword %r" % kw)
 
 
@@ -170,21 +194,99 @@ def fetch_bing(cfg, seen, fresh):
                       {"format": "js", "idx": idx, "n": 1, "mkt": cfg.get("bing_market", "en-IN")})
         im = d["images"][0]
         last = {"id": "bing:" + im["urlbase"], "url": "https://www.bing.com" + im["urlbase"] + "_UHD.jpg",
-                "page": im.get("copyrightlink", ""), "title": im.get("copyright", "Bing image"),
-                "source": "bing"}
+                "page": im.get("copyrightlink", ""), "source": "bing"}
+        text = im.get("copyright") or "Bing image"  # "Place, Country (c Photographer/Agency)"
+        last["title"], _, credit = text.partition(" (")
+        last["credit"] = credit.rstrip(")")
         if last["id"] not in seen:
             return last
     return last  # only 8 days of Bing images exist; reuse one rather than fail
 
 
-FETCHERS = {"wikimedia": fetch_wikimedia, "bing": fetch_bing}
+def fetch_spotlight(cfg, seen, fresh):
+    """The pictures Windows 11 shows on its lock screen: 3840x2160, four different ones per request."""
+    locale = cfg.get("bing_market") or "en-US"
+    d = http_json("https://fd.api.iris.microsoft.com/v4/api/selection",
+                  {"placement": "88000820", "bcnt": 4, "country": locale.split("-")[-1].upper(),
+                   "locale": locale, "fmt": "json"}, headers={"User-Agent": "Mozilla/5.0"})
+    for it in d.get("batchrsp", {}).get("items", []):
+        ad = json.loads(it["item"]).get("ad", {})
+        url = (ad.get("landscapeImage") or {}).get("asset")
+        if not url:
+            continue
+        pid = "spotlight:" + (ad.get("entityId") or url.rsplit("/", 1)[-1])
+        if pid in seen:
+            continue
+        page = ad.get("ctaUri") or ""
+        return {"id": pid, "url": url, "page": page[page.find("http"):] if "http" in page else "",
+                "title": ad.get("title") or "Windows Spotlight picture", "credit": ad.get("copyright") or "",
+                "source": "spotlight"}
+    raise RuntimeError("Spotlight: no unseen picture in this batch")
+
+
+def fetch_peapix(cfg, seen, fresh):
+    """Peapix keeps the last few Spotlight pictures: a second way to them if Microsoft's own changes."""
+    items = http_json("https://peapix.com/spotlight/feed", {"n": 7})
+    random.shuffle(items)
+    for it in items:
+        pid = "peapix:" + it["imageUrl"].rsplit("/", 1)[-1]
+        if pid not in seen:
+            return {"id": pid, "url": it["imageUrl"], "page": it.get("pageUrl", ""),
+                    "title": it.get("title") or "Spotlight picture",
+                    "credit": (it.get("copyright") or "").replace("\ufffd", "\u00a9"), "source": "peapix"}
+    raise RuntimeError("Peapix: all of its recent pictures have been shown already")
+
+
+def fetch_nasa(cfg, seen, fresh):
+    """NASA Image and Video Library (images.nasa.gov, no key): panoramas, by keyword where it has any."""
+    kw = pick_keyword(cfg)
+    for q in ([kw + " panorama"] if kw else []) + ["panorama"]:
+        items = http_json("https://images-api.nasa.gov/search",
+                          {"q": q, "media_type": "image", "page_size": 100})["collection"]["items"]
+        random.shuffle(items)
+        for it in items[:12]:
+            meta = it["data"][0]
+            nid = meta["nasa_id"]
+            if "nasa:" + nid in seen:
+                continue
+            url = "https://images-assets.nasa.gov/image/%s/%s~orig.jpg" % ((urllib.parse.quote(nid),) * 2)
+            if big_enough(url):
+                return {"id": "nasa:" + nid, "url": url, "page": "https://images.nasa.gov/details/" + nid,
+                        "title": meta.get("title", nid),
+                        "credit": "/".join(x for x in ("NASA", meta.get("center")) if x), "source": "nasa"}
+    raise RuntimeError("NASA: no unseen large picture for keyword %r" % kw)
+
+
+def esa_fetcher(name, site, label):
+    """ESA's Webb and Hubble sites publish their newest pictures as a feed (CC BY 4.0)."""
+    def fetch(cfg, seen, fresh):
+        feed = http_get("https://%s/images/feed/" % site).decode("utf-8", "replace")
+        found = re.findall(r"<item>\s*<title>(.*?)</title>\s*<link>https://%s/images/([^/<]+)/</link>"
+                           % re.escape(site), feed, re.S)
+        random.shuffle(found)
+        for title, iid in found[:10]:
+            pid = "%s:%s" % (name, iid)
+            if pid in seen:
+                continue
+            url = "https://cdn.%s/archives/images/large/%s.jpg" % (site, iid)
+            if big_enough(url):
+                return {"id": pid, "url": url, "page": "https://%s/images/%s/" % (site, iid),
+                        "title": html.unescape(title).strip(), "credit": label + ", CC BY 4.0", "source": name}
+        raise RuntimeError("%s: no unseen large picture in its feed" % label)
+    return fetch
+
+
+FETCHERS = {
+    "wikimedia": fetch_wikimedia, "spotlight": fetch_spotlight, "bing": fetch_bing, "peapix": fetch_peapix,
+    "nasa": fetch_nasa, "webb": esa_fetcher("webb", "esawebb.org", "ESA/Webb"),
+    "hubble": esa_fetcher("hubble", "esahubble.org", "ESA/Hubble"),
+}
 
 
 def source_chain(cfg):
+    """The chosen source first (Auto: none), then every other one, best working first."""
     s = cfg["source"]
-    if s == "auto":
-        return ["wikimedia", "bing"]
-    return [s] + [x for x in ("bing",) if x != s]  # Bing as last-resort fallback
+    return list(ORDER) if s == "auto" else [s] + [n for n in ORDER if n != s]
 
 
 # ---------------------------------------------------------------- image + desktop
@@ -252,7 +354,9 @@ def change_wallpaper(fresh=False, retry_skipped=False):
             try:
                 info = FETCHERS[name](cfg, seen, fresh)
                 log.info("Downloading [%s] %s", name, info["url"])
-                img = compose(http_get(info["url"], timeout=120), size, cfg.get("vertical_anchor", 0.5))
+                raw = http_get(info["url"], timeout=120)
+                img_size = Image.open(io.BytesIO(raw)).size  # the picture as it came, before cropping
+                img = compose(raw, size, cfg.get("vertical_anchor", 0.5))
                 out = os.path.join(DATA, "wallpaper_%d.jpg" % int(time.time()))
                 img.save(out, "JPEG", quality=95, subsampling=0)
                 set_wallpaper(out)
@@ -265,7 +369,8 @@ def change_wallpaper(fresh=False, retry_skipped=False):
                 st["history"] = (st["history"] + [info["id"]])[-300:]
                 st["last_date"] = datetime.date.today().isoformat()
                 st["last_ts"] = time.time()
-                st["current"] = {"title": info["title"], "page": info["page"], "source": name, "file": out}
+                st["current"] = {"title": info["title"], "credit": info.get("credit", ""), "page": info["page"],
+                                 "source": name, "file": out, "size": "%dx%d" % img_size}
                 skip.pop(name, None)
                 for bad in failed:  # the network is up, so these are the ones it can't reach
                     skip[bad] = now + SKIP_SECONDS
@@ -273,7 +378,8 @@ def change_wallpaper(fresh=False, retry_skipped=False):
                              bad, time.strftime("%H:%M", time.localtime(skip[bad])))
                 st["skip_until"] = skip
                 save_json(STATE_PATH, st)
-                log.info("Wallpaper set %dx%d: %s", size[0], size[1], info["title"])
+                log.info("Wallpaper set %dx%d: %s (%s; %s)", size[0], size[1], info["title"],
+                         info.get("credit", ""), SOURCE_LABELS.get(name, name))
                 return info
             except Exception as e:
                 log.warning("Source %s failed: %s", name, e)
@@ -286,18 +392,22 @@ def change_wallpaper(fresh=False, retry_skipped=False):
 def run_test():
     cfg = load_config()
     print("Combined desktop size:", "%dx%d" % canvas_size(cfg))
-    for name, fn in FETCHERS.items():
+    for name in ORDER:
         try:
-            info = fn(cfg, set(), True)
-            n = len(http_get(info["url"], timeout=120))
-            print("OK    %-10s %s  (%.1f MB)" % (name, info["title"][:70], n / 1e6))
+            info = FETCHERS[name](cfg, set(), True)
+            raw = http_get(info["url"], timeout=120)
+            line = "OK    %-10s %dx%d  %.1f MB  %s (%s)" % (
+                (name,) + Image.open(io.BytesIO(raw)).size
+                + (len(raw) / 1e6, info["title"][:50], info.get("credit", "")[:40]))
         except Exception as e:
-            print("FAIL  %-10s %s" % (name, e))
+            line = "FAIL  %-10s %s" % (name, e)
+        print(line.encode("ascii", "replace").decode("ascii"))
 
 
 # ---------------------------------------------------------------- keywords window
-PRESETS = ["mountains", "landscape", "forest", "coast", "lake", "river", "waterfall",
-           "desert", "snow", "city", "night sky", "space"]
+PRESETS = ["mountains", "landscape", "forest", "coast", "lake", "river", "waterfall", "desert",
+           "snow", "city", "night sky", "space", "sunset", "beach", "island", "canyon",
+           "valley", "glacier", "volcano", "fjord", "skyline", "castle", "mars", "milky way"]
 
 
 def get_keywords():
@@ -318,10 +428,10 @@ def run_keywords_window():
     frm = ttk.Frame(root, padding=12)
     frm.grid()
     ttk.Label(frm, text="Tick the topics you want. One ticked topic is picked at random per image.\n"
-                        "None ticked = any topic. Used by Wikimedia Commons; Bing has one image a day.").grid(
-        row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+                        "None ticked = any topic. Used by Wikimedia Commons and NASA.").grid(
+        row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
     box = ttk.Frame(frm)
-    box.grid(row=1, column=0, columnspan=3, sticky="w")
+    box.grid(row=1, column=0, columnspan=4, sticky="w")
     vars_ = {}
 
     def save():
@@ -332,7 +442,7 @@ def run_keywords_window():
         n = len(vars_)
         vars_[k] = v
         ttk.Checkbutton(box, text=k, variable=v, command=save).grid(
-            row=n // 3, column=n % 3, sticky="w", padx=(0, 18), pady=2)
+            row=n // 4, column=n % 4, sticky="w", padx=(0, 18), pady=2)
 
     current = get_keywords()
     for k in PRESETS + [k for k in current if k not in PRESETS]:
@@ -353,7 +463,7 @@ def run_keywords_window():
 
     entry.bind("<Return>", add)
     ttk.Button(frm, text="Add keyword", command=add).grid(row=2, column=1, sticky="w", padx=6, pady=(10, 0))
-    ttk.Button(frm, text="Close", command=root.destroy).grid(row=2, column=2, sticky="e", pady=(10, 0))
+    ttk.Button(frm, text="Close", command=root.destroy).grid(row=2, column=3, sticky="e", pady=(10, 0))
     root.mainloop()
 
 
@@ -461,9 +571,25 @@ def run_tray():
     if not os.path.exists(CONFIG_PATH):
         save_json(CONFIG_PATH, cfg)
 
+    def current():
+        return load_state().get("current", {})
+
     def refresh_title():
-        cur = load_state().get("current", {})
-        icon.title = ("%s - %s" % (APP, cur.get("title", "")))[:120]
+        icon.title = ("%s - %s" % (APP, current().get("title", "")))[:120]
+        try:
+            icon.update_menu()  # About this image shows the new picture's details
+        except Exception:
+            pass
+
+    def detail(key, prefix="", labels=None):
+        """Menu text for one detail of the current picture; the line is hidden when there's nothing to say."""
+        def text(item):
+            value = str(current().get(key) or "")
+            value = (labels or {}).get(value, value)
+            if len(value) > 90:
+                value = value[:87] + "..."
+            return (prefix + value).replace("&", "&&")
+        return Item(text, None, enabled=False, visible=lambda item: bool(current().get(key)))
 
     def do_change(fresh, retry_skipped=False):
         def work():
@@ -511,7 +637,7 @@ def run_tray():
             ("Every hour", 60), ("Every 30 minutes", 30), ("Every 15 minutes", 15)])),
         Item("Crop position (tall images)", radio_menu("vertical_anchor", [
             ("Top", 0.0), ("Upper", 0.25), ("Middle", 0.5), ("Lower", 0.75), ("Bottom", 1.0)])),
-        Item("Bing region", radio_menu("bing_market", [
+        Item("Region (Bing and Spotlight)", radio_menu("bing_market", [
             ("India", "en-IN"), ("United States", "en-US"), ("United Kingdom", "en-GB"),
             ("Japan", "ja-JP"), ("Germany", "de-DE")])),
         Menu.SEPARATOR,
@@ -524,7 +650,14 @@ def run_tray():
         Item("Source", Menu(*[
             Item(SOURCE_LABELS[s], choose_source(s), radio=True,
                  checked=lambda it, s=s: load_config()["source"] == s) for s in SOURCES])),
-        Item("About this image (open web page)", open_page),
+        Item("About this image", Menu(
+            detail("title"),
+            detail("credit"),
+            detail("source", "From: ", SOURCE_LABELS),
+            detail("size", "Original size: "),
+            Menu.SEPARATOR,
+            Item("Open web page", open_page, enabled=lambda item: bool(current().get("page"))),
+        )),
         Item("Settings", settings_menu),
         Item("Open log", lambda i, it: os.startfile(LOG_PATH)),
         Item("Start with Windows", toggle_autostart, checked=lambda it: autostart_enabled()),
