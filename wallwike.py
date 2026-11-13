@@ -16,6 +16,7 @@ import random
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -35,7 +36,8 @@ DATA = os.path.join(HERE, "data")
 CONFIG_PATH = os.path.join(HERE, "config.json")
 STATE_PATH = os.path.join(DATA, "state.json")
 LOG_PATH = os.path.join(DATA, "wallwike.log")
-UA = "Wallwike/1.0 (personal daily wallpaper script; Python urllib)"
+UA = "%s/%s (personal daily wallpaper script; Python urllib)" % (APP, VERSION)
+SKIP_SECONDS = 6 * 3600  # a source this network can't reach is tried last for this long
 SOURCES = ["auto", "wallhaven", "wikimedia", "bing", "apod"]
 SOURCE_LABELS = {
     "auto": "Auto (Wallhaven > Wikimedia > Bing)",
@@ -261,13 +263,29 @@ def set_wallpaper(path):
         raise ctypes.WinError()
 
 
-def change_wallpaper(fresh=False):
-    """fresh=False: today's image. fresh=True: user asked for a different one."""
+def unreachable(e):
+    """True when the site could not be reached at all (timed out, blocked, no route)."""
+    return (isinstance(e, (urllib.error.URLError, TimeoutError, ConnectionError))
+            and not isinstance(e, urllib.error.HTTPError))
+
+
+def change_wallpaper(fresh=False, retry_skipped=False):
+    """fresh=False: today's image. fresh=True: user asked for a different one.
+
+    A source that can't be reached while another one works (blocked on this network, say) is
+    moved to the end of the queue for SKIP_SECONDS, so each change doesn't wait for it to time out.
+    retry_skipped=True forgets that and tries the sources in their normal order.
+    """
     with _lock:
         cfg, st = load_config(), load_state()
         seen = set(st["history"])
         size = canvas_size(cfg)
-        for name in source_chain(cfg):
+        now = time.time()
+        skip = {} if retry_skipped else {k: v for k, v in (st.get("skip_until") or {}).items() if v > now}
+        chain = source_chain(cfg)
+        chain = [n for n in chain if n not in skip] + [n for n in chain if n in skip]
+        failed = []
+        for name in chain:
             try:
                 info = FETCHERS[name](cfg, seen, fresh)
                 log.info("Downloading [%s] %s", name, info["url"])
@@ -285,11 +303,19 @@ def change_wallpaper(fresh=False):
                 st["last_date"] = datetime.date.today().isoformat()
                 st["last_ts"] = time.time()
                 st["current"] = {"title": info["title"], "page": info["page"], "source": name, "file": out}
+                skip.pop(name, None)
+                for bad in failed:  # the network is up, so these are the ones it can't reach
+                    skip[bad] = now + SKIP_SECONDS
+                    log.info("Source %s can't be reached from this network; trying it last until %s",
+                             bad, time.strftime("%H:%M", time.localtime(skip[bad])))
+                st["skip_until"] = skip
                 save_json(STATE_PATH, st)
                 log.info("Wallpaper set %dx%d: %s", size[0], size[1], info["title"])
                 return info
             except Exception as e:
                 log.warning("Source %s failed: %s", name, e)
+                if unreachable(e):
+                    failed.append(name)
         log.error("All sources failed; will retry later")
         return None
 
@@ -463,6 +489,11 @@ def run_tray():
                 set_autostart(True)
             except OSError:
                 pass
+        try:  # Start with Windows follows the app: point it at this copy, not a moved or older one
+            if autostart_enabled():
+                set_autostart(True)
+        except OSError:
+            pass
     cfg = load_config()
     if not os.path.exists(CONFIG_PATH):
         save_json(CONFIG_PATH, cfg)
@@ -471,9 +502,9 @@ def run_tray():
         cur = load_state().get("current", {})
         icon.title = ("%s - %s" % (APP, cur.get("title", "")))[:120]
 
-    def do_change(fresh):
+    def do_change(fresh, retry_skipped=False):
         def work():
-            if change_wallpaper(fresh) is None:
+            if change_wallpaper(fresh, retry_skipped) is None:
                 try:
                     icon.notify("Could not download a wallpaper. Will retry.", APP)
                 except Exception:
@@ -484,7 +515,7 @@ def run_tray():
     def choose_source(name):
         def handler(icon_, item):
             save_config_value("source", name)
-            do_change(True)
+            do_change(True, retry_skipped=True)  # picking a source tries it again straight away
         return handler
 
     def toggle_autostart(icon_, item):

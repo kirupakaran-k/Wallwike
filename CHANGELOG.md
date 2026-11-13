@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7: Skips unreachable sources, Start with Windows heals - 2026-11-13
+A source that can't be reached while another one works (Wallhaven is blocked on some networks, and every change used to wait 12 seconds for it to time out) is now tried last for the next 6 hours instead of first; picking a source in the tray menu tries it again straight away, and if nothing can be reached at all (you're offline) nothing is skipped. Start with Windows now follows the app: each time Wallwike starts with it ticked, the entry is pointed at the copy that is running, so it no longer breaks when a newer version is built or the folder is moved. Wallwike also tells the picture sites its real version number instead of always saying 1.0.
+
 ## 1.6: Version folders, settings in AppData - 2026-11-13
 The source is now kept the way Synked's is: each version in its own folder under 'version 1' with this file beside them, and build.bat (rewritten after Synked's) builds Wallwike.exe into 'build 1.6' outside the version folders, keeps its build tools in %LOCALAPPDATA%\Wallwike\build-env, draws the icon itself, and closes and restarts a running Wallwike. Settings, the log and the current wallpaper move to %APPDATA%\Wallwike so every version shares them; settings saved beside an older script or exe are copied over the first time this version starts. version.py now holds VERSION and APP.
 

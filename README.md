@@ -4,14 +4,25 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 
 *Wallwike by EAGER - Softech. An engineering by Er. K.K.*
 
-## Setup
+## Download
+Get **`Wallwike.exe`** from the [latest release](https://github.com/kirupakaran-k/Wallwike/releases/latest)
+and run it. Nothing to install. Windows 10 or 11. A tray icon (two small screens) appears and
+today's wallpaper is set.
+
+The app isn't code-signed, so the first time Windows SmartScreen may say *"Windows protected
+your PC"*: click **More info > Run anyway**.
+
+## Or run it from source (needs Python)
 1. Double-click `install.bat` - installs Pillow and pystray, then tests which image sources your network can reach.
 2. Double-click `run.bat` - a tray icon (two small screens) appears and today's wallpaper is set.
-3. Right-click the tray icon > **Start with Windows** to run it at every logon.
+3. Right-click the tray icon > **Start with Windows** to run it at every logon. It always starts
+   the copy you ran last, so it keeps working after you build a newer version or move the folder.
 
 ## Use
 - **Next image**: right-click > Next image, or press **Ctrl+Alt+N**. Left-click does nothing.
 - **Source**: right-click > Source. *Auto* tries Wallhaven, then Wikimedia Commons, then Bing.
+  A source your network can't reach is tried last for the next 6 hours, so it doesn't slow every
+  change down; picking a source in the menu tries it again straight away.
 - **Settings**: right-click > Settings. Tick keywords (one ticked keyword is picked at random per
   image; applies to Wallhaven and Wikimedia), add a custom one, set crop position and Bing region.
   Changes apply from the next image.
