@@ -12,8 +12,9 @@ Daily wallpaper for a dual-monitor Windows desktop: one image spanned across bot
 ## Use
 - **Next image**: left-click the tray icon, or press **Ctrl+Alt+N**.
 - **Source**: right-click > Source. *Auto* tries Wallhaven, then Wikimedia Commons, then Bing.
-- **Keywords**: right-click > Edit settings, change `"keywords"` in `config.json`, save. One keyword is
-  picked at random per image. Applies to Wallhaven and Wikimedia (Bing and NASA have no search).
+- **Settings**: right-click > Settings. Tick keywords (one ticked keyword is picked at random per
+  image; applies to Wallhaven and Wikimedia), add a custom one, set crop position and Bing region.
+  Changes apply from the next image.
 - A new image is set once per day (checked at start and every 5 minutes; retries when offline).
 
 ## Settings (`config.json`)

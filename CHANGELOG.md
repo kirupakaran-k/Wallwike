@@ -1,4 +1,7 @@
 # Changelog
 
+## 1.1: Settings submenu - 2026-11-13
+Edit settings is replaced by a Settings submenu in the tray menu: Keywords (a tick list of twelve topics, Add custom keyword, Clear all), Crop position for tall pictures (Top to Bottom) and Bing region, with Open config.json kept for the rest. One ticked keyword is picked at random per picture.
+
 ## 1.0: First build - 2026-11-13
 The first version, called SpanPaper. A tray app that sets one daily wallpaper stretched across both monitors as a single picture, instead of the same picture twice. It reads the combined desktop size from Windows (3840x1080 for two 1920x1080 screens), crops and resizes the picture to exactly that, and sets it with the Windows 'Span' style. Pictures come from Wallhaven (32:9 wallpapers), Wikimedia Commons (featured panoramas), the Bing image of the day or NASA's Astronomy Picture of the Day; Auto tries Wallhaven, then Wikimedia, then Bing, and pictures that are too small are skipped. Tray menu: Next image (also left-click, and Ctrl+Alt+N from anywhere), Source, About this image, Edit settings (opens config.json in Notepad, where the keywords are), Open log, Start with Windows and Quit. A new picture once a day. Run with install.bat then run.bat; needs Python. Settings and the log are kept beside the script.

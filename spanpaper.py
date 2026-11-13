@@ -410,6 +410,78 @@ def run_tray():
         if page:
             webbrowser.open(page)
 
+    # ---- Settings submenu -------------------------------------------------
+    PRESETS = ["mountains", "landscape", "forest", "coast", "lake", "river", "waterfall",
+               "desert", "snow", "city", "night sky", "space"]
+
+    def get_keywords():
+        kw = load_config().get("keywords") or []
+        if isinstance(kw, str):
+            kw = [kw] if kw.strip() else []
+        return [str(k) for k in kw]
+
+    def set_keywords(lst):
+        save_config_value("keywords", lst)
+        icon.update_menu()
+
+    def toggle_keyword(k):
+        def handler(icon_, item):
+            lst = get_keywords()
+            if k in lst:
+                lst.remove(k)
+            else:
+                lst.append(k)
+            set_keywords(lst)
+        return handler
+
+    def add_keyword(icon_, item):
+        def work():
+            import subprocess
+            script = ("import tkinter as tk\n"
+                      "from tkinter import simpledialog\n"
+                      "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+                      "v = simpledialog.askstring('SpanPaper', 'Keyword to add (e.g. himalaya):', parent=r)\n"
+                      "print(v or '')\n")
+            try:
+                out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                                     timeout=300, creationflags=0x08000000 if IS_WIN else 0).stdout.strip()
+            except Exception as e:
+                log.warning("Keyword dialog failed: %s", e)
+                return
+            if out and out not in get_keywords():
+                set_keywords(get_keywords() + [out])
+        threading.Thread(target=work, daemon=True).start()
+
+    def keyword_items():
+        current = get_keywords()
+        names = PRESETS + [k for k in current if k not in PRESETS]
+        items = [Item(k, toggle_keyword(k), checked=lambda it, k=k: k in get_keywords()) for k in names]
+        items += [Menu.SEPARATOR,
+                  Item("Add custom keyword...", add_keyword),
+                  Item("Clear all (any topic)", lambda i, it: set_keywords([]))]
+        return items
+
+    def choose_value(key, value):
+        def handler(icon_, item):
+            save_config_value(key, value)
+        return handler
+
+    def radio_menu(key, options):
+        return Menu(*[Item(label, choose_value(key, val), radio=True,
+                           checked=lambda it, val=val: load_config().get(key) == val)
+                      for label, val in options])
+
+    settings_menu = Menu(
+        Item("Keywords (Wallhaven, Wikimedia)", Menu(keyword_items)),
+        Item("Crop position (tall images)", radio_menu("vertical_anchor", [
+            ("Top", 0.0), ("Upper", 0.25), ("Middle", 0.5), ("Lower", 0.75), ("Bottom", 1.0)])),
+        Item("Bing region", radio_menu("bing_market", [
+            ("India", "en-IN"), ("United States", "en-US"), ("United Kingdom", "en-GB"),
+            ("Japan", "ja-JP"), ("Germany", "de-DE")])),
+        Menu.SEPARATOR,
+        Item("Open config.json (advanced)", lambda i, it: os.startfile(CONFIG_PATH)),
+    )
+
     hot = cfg.get("hotkey") or ""
     menu = Menu(
         Item("Next image" + (" (%s)" % hot.upper() if hot else ""), lambda i, it: do_change(True), default=True),
@@ -417,7 +489,7 @@ def run_tray():
             Item(SOURCE_LABELS[s], choose_source(s), radio=True,
                  checked=lambda it, s=s: load_config()["source"] == s) for s in SOURCES])),
         Item("About this image (open web page)", open_page),
-        Item("Edit settings / keywords", lambda i, it: os.startfile(CONFIG_PATH)),
+        Item("Settings", settings_menu),
         Item("Open log", lambda i, it: os.startfile(LOG_PATH)),
         Item("Start with Windows", toggle_autostart, checked=lambda it: autostart_enabled()),
         Menu.SEPARATOR,
