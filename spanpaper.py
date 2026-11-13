@@ -294,6 +294,68 @@ def run_test():
             print("FAIL  %-10s %s" % (name, e))
 
 
+# ---------------------------------------------------------------- keywords window
+PRESETS = ["mountains", "landscape", "forest", "coast", "lake", "river", "waterfall",
+           "desert", "snow", "city", "night sky", "space"]
+
+
+def get_keywords():
+    kw = load_config().get("keywords") or []
+    if isinstance(kw, str):
+        kw = [kw] if kw.strip() else []
+    return [str(k) for k in kw]
+
+
+def run_keywords_window():
+    """Small window that stays open while ticking several topics (tray menus close on every click)."""
+    import tkinter as tk
+    from tkinter import ttk
+    root = tk.Tk()
+    root.title("SpanPaper keywords")
+    root.resizable(False, False)
+    root.attributes("-topmost", True)
+    frm = ttk.Frame(root, padding=12)
+    frm.grid()
+    ttk.Label(frm, text="Tick the topics you want. One ticked topic is picked at random per image.\n"
+                        "None ticked = any topic. Used by Wallhaven and Wikimedia.").grid(
+        row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+    box = ttk.Frame(frm)
+    box.grid(row=1, column=0, columnspan=3, sticky="w")
+    vars_ = {}
+
+    def save():
+        save_config_value("keywords", [k for k, v in vars_.items() if v.get()])
+
+    def add_check(k, on):
+        v = tk.BooleanVar(value=on)
+        n = len(vars_)
+        vars_[k] = v
+        ttk.Checkbutton(box, text=k, variable=v, command=save).grid(
+            row=n // 3, column=n % 3, sticky="w", padx=(0, 18), pady=2)
+
+    current = get_keywords()
+    for k in PRESETS + [k for k in current if k not in PRESETS]:
+        add_check(k, k in current)
+
+    entry = ttk.Entry(frm, width=24)
+    entry.grid(row=2, column=0, sticky="w", pady=(10, 0))
+
+    def add(*_):
+        k = entry.get().strip()
+        if k:
+            if k in vars_:
+                vars_[k].set(True)
+            else:
+                add_check(k, True)
+            save()
+        entry.delete(0, "end")
+
+    entry.bind("<Return>", add)
+    ttk.Button(frm, text="Add keyword", command=add).grid(row=2, column=1, sticky="w", padx=6, pady=(10, 0))
+    ttk.Button(frm, text="Close", command=root.destroy).grid(row=2, column=2, sticky="e", pady=(10, 0))
+    root.mainloop()
+
+
 # ---------------------------------------------------------------- Windows integration
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -411,55 +473,9 @@ def run_tray():
             webbrowser.open(page)
 
     # ---- Settings submenu -------------------------------------------------
-    PRESETS = ["mountains", "landscape", "forest", "coast", "lake", "river", "waterfall",
-               "desert", "snow", "city", "night sky", "space"]
-
-    def get_keywords():
-        kw = load_config().get("keywords") or []
-        if isinstance(kw, str):
-            kw = [kw] if kw.strip() else []
-        return [str(k) for k in kw]
-
-    def set_keywords(lst):
-        save_config_value("keywords", lst)
-        icon.update_menu()
-
-    def toggle_keyword(k):
-        def handler(icon_, item):
-            lst = get_keywords()
-            if k in lst:
-                lst.remove(k)
-            else:
-                lst.append(k)
-            set_keywords(lst)
-        return handler
-
-    def add_keyword(icon_, item):
-        def work():
-            import subprocess
-            script = ("import tkinter as tk\n"
-                      "from tkinter import simpledialog\n"
-                      "r = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
-                      "v = simpledialog.askstring('SpanPaper', 'Keyword to add (e.g. himalaya):', parent=r)\n"
-                      "print(v or '')\n")
-            try:
-                out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
-                                     timeout=300, creationflags=0x08000000 if IS_WIN else 0).stdout.strip()
-            except Exception as e:
-                log.warning("Keyword dialog failed: %s", e)
-                return
-            if out and out not in get_keywords():
-                set_keywords(get_keywords() + [out])
-        threading.Thread(target=work, daemon=True).start()
-
-    def keyword_items():
-        current = get_keywords()
-        names = PRESETS + [k for k in current if k not in PRESETS]
-        items = [Item(k, toggle_keyword(k), checked=lambda it, k=k: k in get_keywords()) for k in names]
-        items += [Menu.SEPARATOR,
-                  Item("Add custom keyword...", add_keyword),
-                  Item("Clear all (any topic)", lambda i, it: set_keywords([]))]
-        return items
+    def open_keywords(icon_, item):
+        import subprocess
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), "--keywords"])
 
     def choose_value(key, value):
         def handler(icon_, item):
@@ -472,7 +488,7 @@ def run_tray():
                       for label, val in options])
 
     settings_menu = Menu(
-        Item("Keywords (Wallhaven, Wikimedia)", Menu(keyword_items)),
+        Item("Keywords...", open_keywords),
         Item("Crop position (tall images)", radio_menu("vertical_anchor", [
             ("Top", 0.0), ("Upper", 0.25), ("Middle", 0.5), ("Lower", 0.75), ("Bottom", 1.0)])),
         Item("Bing region", radio_menu("bing_market", [
@@ -524,6 +540,8 @@ if __name__ == "__main__":
             pass
     if "--test" in sys.argv:
         run_test()
+    elif "--keywords" in sys.argv:
+        run_keywords_window()
     elif "--once" in sys.argv:
         sys.exit(0 if change_wallpaper("--next" in sys.argv) else 1)
     else:

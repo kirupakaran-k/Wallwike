@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2: Keywords window that stays open - 2026-11-13
+Windows closes a tray menu after every click, so ticking several keywords meant opening the menu again each time. Keywords now opens a small window of tick boxes that stays open until you close it, with a box to type your own keyword; each tick is saved straight away. Crop position and Bing region stay as submenus.
+
 ## 1.1: Settings submenu - 2026-11-13
 Edit settings is replaced by a Settings submenu in the tray menu: Keywords (a tick list of twelve topics, Add custom keyword, Clear all), Crop position for tall pictures (Top to Bottom) and Bing region, with Open config.json kept for the rest. One ticked keyword is picked at random per picture.
 
