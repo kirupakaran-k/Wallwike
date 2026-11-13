@@ -38,13 +38,11 @@ STATE_PATH = os.path.join(DATA, "state.json")
 LOG_PATH = os.path.join(DATA, "wallwike.log")
 UA = "%s/%s (personal daily wallpaper script; Python urllib)" % (APP, VERSION)
 SKIP_SECONDS = 6 * 3600  # a source this network can't reach is tried last for this long
-SOURCES = ["auto", "wallhaven", "wikimedia", "bing", "apod"]
+SOURCES = ["auto", "wikimedia", "bing"]
 SOURCE_LABELS = {
-    "auto": "Auto (Wallhaven > Wikimedia > Bing)",
-    "wallhaven": "Wallhaven (32:9 wallpapers)",
+    "auto": "Auto (Wikimedia > Bing)",
     "wikimedia": "Wikimedia Commons (featured panoramas)",
     "bing": "Bing image of the day",
-    "apod": "NASA Astronomy Picture of the Day",
 }
 DEFAULT_CONFIG = {
     "source": "auto",
@@ -54,10 +52,8 @@ DEFAULT_CONFIG = {
     "canvas": None,
     "vertical_anchor": 0.5,
     "bing_market": "en-IN",
-    "wallhaven_api_key": "",
-    "wallhaven_categories": "100",
-    "nasa_api_key": "DEMO_KEY",
 }
+OLD_KEYS = ("wallhaven_api_key", "wallhaven_categories", "nasa_api_key")  # sources removed in 1.8
 Image.MAX_IMAGE_PIXELS = 400_000_000
 
 os.makedirs(DATA, exist_ok=True)
@@ -107,6 +103,8 @@ def load_config():
 def save_config_value(key, value):
     cfg = load_json(CONFIG_PATH, DEFAULT_CONFIG)
     cfg[key] = value
+    for old in OLD_KEYS:
+        cfg.pop(old, None)
     save_json(CONFIG_PATH, cfg)
 
 
@@ -138,25 +136,6 @@ def http_json(url, params=None, timeout=30):
 
 # ---------------------------------------------------------------- sources
 # Each returns {"id", "url", "title", "page", "source"} or raises.
-def fetch_wallhaven(cfg, seen, fresh):
-    kw = pick_keyword(cfg)
-    tiers = [("32x9", "3840x1080"), ("21x9", "3440x1440"), ("16x9", "3840x2160")]
-    for ratio, atleast in tiers:
-        params = {"ratios": ratio, "atleast": atleast, "purity": "100",
-                  "categories": cfg.get("wallhaven_categories", "100"), "sorting": "random"}
-        if kw:
-            params["q"] = kw
-        if cfg.get("wallhaven_api_key"):
-            params["apikey"] = cfg["wallhaven_api_key"]
-        items = http_json("https://wallhaven.cc/api/v1/search", params, timeout=12).get("data", [])
-        for it in items:
-            if "wallhaven:" + it["id"] not in seen:
-                return {"id": "wallhaven:" + it["id"], "url": it["path"], "page": it.get("url", ""),
-                        "title": "Wallhaven %s (%s, %s)" % (it["id"], it.get("resolution", "?"), kw or "any"),
-                        "source": "wallhaven"}
-    raise RuntimeError("Wallhaven: no unseen result for keyword %r" % kw)
-
-
 def fetch_wikimedia(cfg, seen, fresh):
     kw = pick_keyword(cfg)
     base = "%s panorama filetype:bitmap filew:>3839 fileh:>1079" % kw
@@ -198,29 +177,13 @@ def fetch_bing(cfg, seen, fresh):
     return last  # only 8 days of Bing images exist; reuse one rather than fail
 
 
-def fetch_apod(cfg, seen, fresh):
-    params = {"api_key": cfg.get("nasa_api_key") or "DEMO_KEY"}
-    if fresh:
-        params["count"] = 5
-    d = http_json("https://api.nasa.gov/planetary/apod", params)
-    for it in (d if isinstance(d, list) else [d]):
-        if it.get("media_type") != "image":
-            continue
-        pid = "apod:" + it.get("date", "")
-        if pid in seen and fresh:
-            continue
-        return {"id": pid, "url": it.get("hdurl") or it["url"], "page": "https://apod.nasa.gov/apod/",
-                "title": "%s (NASA APOD %s)" % (it.get("title", ""), it.get("date", "")), "source": "apod"}
-    raise RuntimeError("APOD: today's entry is not an image")
-
-
-FETCHERS = {"wallhaven": fetch_wallhaven, "wikimedia": fetch_wikimedia, "bing": fetch_bing, "apod": fetch_apod}
+FETCHERS = {"wikimedia": fetch_wikimedia, "bing": fetch_bing}
 
 
 def source_chain(cfg):
     s = cfg["source"]
     if s == "auto":
-        return ["wallhaven", "wikimedia", "bing"]
+        return ["wikimedia", "bing"]
     return [s] + [x for x in ("bing",) if x != s]  # Bing as last-resort fallback
 
 
@@ -355,7 +318,7 @@ def run_keywords_window():
     frm = ttk.Frame(root, padding=12)
     frm.grid()
     ttk.Label(frm, text="Tick the topics you want. One ticked topic is picked at random per image.\n"
-                        "None ticked = any topic. Used by Wallhaven and Wikimedia.").grid(
+                        "None ticked = any topic. Used by Wikimedia Commons; Bing has one image a day.").grid(
         row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
     box = ttk.Frame(frm)
     box.grid(row=1, column=0, columnspan=3, sticky="w")

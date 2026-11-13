@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8: Wallhaven and NASA removed, new README - 2026-11-13
+Wallhaven and NASA's Astronomy Picture of the Day are gone: pictures now come from Wikimedia Commons (featured panoramas) and the Bing image of the day, and Auto tries Wikimedia first, then Bing. If Wallhaven or NASA was your chosen source, Wallwike switches to Auto by itself, and their leftover keys are dropped from config.json the next time a setting is saved. The Keywords window now says it applies to Wikimedia Commons. The README is rewritten for people rather than programmers: what Wallwike does and why, a before-and-after picture of two monitors, and screenshots of the tray menu and the Keywords window (kept in docs\screenshots).
+
 ## 1.7: Skips unreachable sources, Start with Windows heals - 2026-11-13
 A source that can't be reached while another one works (Wallhaven is blocked on some networks, and every change used to wait 12 seconds for it to time out) is now tried last for the next 6 hours instead of first; picking a source in the tray menu tries it again straight away, and if nothing can be reached at all (you're offline) nothing is skipped. Start with Windows now follows the app: each time Wallwike starts with it ticked, the entry is pointed at the copy that is running, so it no longer breaks when a newer version is built or the folder is moved. Wallwike also tells the picture sites its real version number instead of always saying 1.0.
 
